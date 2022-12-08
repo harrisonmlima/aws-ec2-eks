@@ -1,0 +1,140 @@
+- name: Instalação do Jenkins
+  hosts: jenkins #nome que está em hosts, poderia ser all
+  become: yes
+  tasks:
+  - name: Instalação do Java
+    ansible.builtin.apt:
+      name: openjdk-17-jdk
+      update_cache: yes
+      state: present
+  - name: Adicionando a chave do repositorio jenkins
+    ansible.builtin.apt_key:
+      url: https://pkg.jenkins.io/debian/jenkins.io.key
+      state: present
+  - name: Adicionando o repositorio do jenkins
+    ansible.builtin.apt_repository: 
+      repo: deb https://pkg.jenkins.io/debian binary/
+      state: present
+  - name: Instalação do Jenkins
+    ansible.builtin.apt:
+      name: jenkins
+      update_cache: yes
+      state: present
+
+  - name: Pegando key de acesso inicial do jenkins
+    ansible.builtin.command: cat /var/lib/jenkins/secrets/initialAdminPassword
+    register: chave
+    ignore_errors: yes
+
+  - name: Exibindo a chave inicial
+    ansible.builtin.debug:
+      msg: "{{ chave.stdout }}"
+    when: chave.stdout != ""
+
+- name: Instalação do docker
+  hosts: jenkins 
+  become: yes
+  tasks:
+    - name: Instalação de pre-requesitos do docker
+      apt:
+        name: ca-certificates, curl, gnupg, lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Adicionando a chave do repositorio do docker
+      ansible.builtin.apt_key: 
+        url: https://download.docker.com/linux/debian/gpg
+        state: present
+
+    - name: Adicionando o repositorio do docker
+      ansible.builtin.apt_repository: 
+        repo: deb https://download.docker.com/linux/ubuntu bionic stable
+        state: present
+
+    - name: Instalação do Docker
+      ansible.builtin.apt:
+        name: docker-ce, docker-ce-cli, containerd.io
+        state: present
+        update_cache: yes
+        
+        
+    - name: Adicionando o usuario jenkins no grupo Docker
+      ansible.builtin.user:
+        name: jenkins
+        groups: docker
+        state: present
+        append: yes
+    
+    - name: Restart jenkins
+      ansible.builtin.service:
+        name: jenkins
+        state: restarted
+
+
+- name: Instalação do kubectl
+  hosts: jenkins #nome que está em hosts, poderia ser all
+  become: yes
+  tasks:
+    - name: Instalando os pacotes de pre-requisito
+      apt:
+        name: ca-certificates, curl
+        state: present
+        update_cache: yes
+    - name: Adicionando a chave do repositorio do k8s
+      ansible.builtin.apt_key: 
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+    - name: Adicionando o repositorio do k8s
+      ansible.builtin.apt_repository: 
+        repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+        state: present
+    - name: Instalando o kubectl
+      apt:
+        name: kubectl
+        state: present
+        update_cache: yes
+
+
+- name: Instalação awscli
+  hosts: jenkins #nome que está em hosts, poderia ser all
+  become: yes
+  tasks:
+    - name: Instalando o unzip
+      apt:
+        name: unzip
+        state: present
+    - name: Baixando o awscli
+      ansible.builtin.get_url:
+        url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+        dest: ./awscliv2.zip
+    - name: dezipando o aws
+      ansible.builtin.command: unzip awscliv2.zip
+    - name: instalando aws cli
+      become: yes
+      ansible.builtin.command: ./aws/install
+    - name: Adicionando uma linha para permissao do jenkins
+      become: yes
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        line: "jenkins ALL=(ALL) NOPASSWD: ALL"   
+# - name: Instalação eksctl
+#   hosts: jenkins #nome que está em hosts, poderia ser all
+#   become: yes
+#   tasks:
+#     - name: Baixando o eksctl
+#       ansible.builtin.get_url:
+#         url: https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz
+#         dest: ./eksctl.tar.gz
+
+#     - name: Instalando eksctl 
+#       ansible.builtin.command: tar -xf eksctl.tar.gz -C /tmp
+#     - name: Movendo eksctl pra pasta certa
+#       become: yes
+#       ansible.builtin.command: mv /tmp/eksctl /usr/local/bin 
+
+
+    
+        
+##fazer acesso via SSH ao EC2
+##então alterar para o usuario jenkins com o comando: sudo su - jenkins  
+### Configurar o aws com o comando: aws configure
